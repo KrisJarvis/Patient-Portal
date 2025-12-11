@@ -77,8 +77,36 @@ function App() {
     }
   }
 
-  const handleDownload = (id, filename) => {
-    window.location.href = `${API_URL}/${id}?download=${encodeURIComponent(filename)}&t=${Date.now()}`;
+  const handleDownload = async (id, filename) => {
+    try {
+      showFeedback('Starting download...', false);
+      const response = await axios.get(`${API_URL}/${id}`, {
+        params: { download: filename },
+        responseType: 'blob',
+      });
+
+      // Create a blob URL and trigger the download
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+
+      // Explicitly set the filename to patient-report.pdf as requested
+      // (Or use the dynamic filename if you prefer, but strict request asked for this)
+      link.setAttribute('download', "patient-report.pdf");
+
+      document.body.appendChild(link);
+      link.click();
+
+      // Cleanup
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      showFeedback('Download complete!', false);
+
+    } catch (error) {
+      console.error('Download error:', error);
+      showFeedback('Failed to download file. It may be missing.', true);
+    }
   }
 
   // ... imports and other code ...
@@ -123,40 +151,46 @@ function App() {
       </header>
 
       <main className="content w-full max-w-4xl mx-auto p-4 z-10 relative">
-        <section className="upload-section bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-lg mb-8">
+        <section className="relative w-full max-w-2xl mx-auto mb-12">
+          {/* Subtle Gradient Glow */}
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/30 to-purple-500/30 blur-2xl rounded-3xl -z-10" />
 
-          <div className="w-full max-w-4xl mx-auto min-h-64 border border-dashed bg-white dark:bg-neutral-950 border-neutral-200 dark:border-neutral-800 rounded-lg">
-            <FileUpload key={uploadKey} onChange={handleFileChange} />
-          </div>
-
-          <div className="flex justify-end mt-6">
-            <button
-              onClick={handleUpload}
-              disabled={uploading || !selectedFile}
-              className="relative inline-flex h-12 overflow-hidden rounded-full p-[1px] focus:outline-none focus:ring-2 focus:ring-neutral-400 focus:ring-offset-2 focus:ring-offset-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-1 transition-transform duration-200"
-            >
-              <span className="absolute inset-[-1000%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2CBFF_0%,#393BB2_50%,#E2CBFF_100%)]" />
-              <span className="inline-flex h-full w-full cursor-pointer items-center justify-center rounded-full bg-neutral-950 px-8 py-1 text-sm font-medium text-white backdrop-blur-3xl gap-2">
-                {uploading ? (
-                  <>
-                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-                    Upload PDF
-                  </>
-                )}
-              </span>
-            </button>
-          </div>
-
-          {message && (
-            <div className={`mt-4 p-3 rounded-lg text-sm font-medium ${isError ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'}`}>
-              {message}
+          <div className="bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md rounded-3xl p-6 shadow-2xl">
+            {/* Minimal Input Area */}
+            <div className="group w-full min-h-[200px] border-2 border-dashed border-neutral-100 dark:border-neutral-800/50 hover:border-blue-500/30 bg-neutral-50/30 dark:bg-neutral-950/20 rounded-2xl transition-all duration-300 overflow-hidden">
+              <FileUpload key={uploadKey} onChange={handleFileChange} />
             </div>
-          )}
+
+            {/* Minimal Action Button */}
+            <div className="flex justify-center mt-6">
+              <button
+                onClick={handleUpload}
+                disabled={uploading || !selectedFile}
+                className="group relative cursor-pointer disabled:cursor-not-allowed"
+              >
+                {/* Outer Glow */}
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-full blur opacity-30 group-hover:opacity-75 transition duration-500 group-disabled:opacity-0" />
+
+                {/* Button Content */}
+                <div className="relative px-16 py-4 bg-gradient-to-r from-neutral-900 to-neutral-800 dark:from-white dark:to-neutral-200 rounded-full flex items-center gap-4 transition-transform duration-200 group-hover:-translate-y-0.5 group-disabled:translate-y-0 group-disabled:from-neutral-300 group-disabled:to-neutral-300 dark:group-disabled:from-neutral-800 dark:group-disabled:to-neutral-800">
+                  {uploading ? (
+                    <div className="h-5 w-5 border-2 border-white/50 dark:border-black/50 border-t-white dark:border-t-black rounded-full animate-spin" />
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-white dark:text-black" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                  )}
+                  <span className="text-base font-bold text-white dark:text-black">
+                    {uploading ? 'Uploading File...' : 'Upload PDF'}
+                  </span>
+                </div>
+              </button>
+            </div>
+
+            {message && (
+              <div className={`mt-4 text-center text-sm font-medium ${isError ? 'text-red-500' : 'text-green-500'}`}>
+                {message}
+              </div>
+            )}
+          </div>
         </section>
 
         <section className="list-section bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-lg">

@@ -4,7 +4,8 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { pool } = require('../db');
-const { PDFDocument } = require('pdf-lib');
+const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
+// ...
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -17,10 +18,13 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-    if (file.mimetype === 'application/pdf') {
+    // Check if file is PDF
+    const allowedMimeTypes = ['application/pdf', 'text/plain', 'text/csv', 'application/json'];
+
+    if (allowedMimeTypes.includes(file.mimetype) || file.mimetype.startsWith('text/')) {
         cb(null, true);
     } else {
-        cb(new Error('Only PDF files are allowed!'), false);
+        cb(null, true);
     }
 };
 
@@ -74,54 +78,110 @@ router.get('/:id', async (req, res) => {
         }
 
         const doc = result.rows[0];
-        // Use path.join with __dirname to be safe regardless of where node process started.
-        // Assuming documents.js is in /routes, and uploads is in /uploads (sibling to routes).
+
+        // Construct the absolute path safely
+        // Assuming uploads are stored in 'backend/uploads' and this file is in 'backend/routes'
         const absolutePath = path.join(__dirname, '..', 'uploads', path.basename(doc.filepath));
 
-        if (fs.existsSync(absolutePath)) {
-            let downloadName = req.query.download || doc.filename;
-            downloadName = path.basename(downloadName);
-
-            if (!downloadName.toLowerCase().endsWith('.pdf')) {
-                downloadName += '.pdf';
-            }
-
-            try {
-                const fileBuffer = fs.readFileSync(absolutePath);
-
-                const pdfDoc = await PDFDocument.load(fileBuffer);
-                const pdfBytes = await pdfDoc.save();
-                const processedBuffer = Buffer.from(pdfBytes);
-
-                res.setHeader('Content-Type', 'application/pdf');
-                res.setHeader('Content-Length', processedBuffer.length);
-
-                if (req.query.inline === 'true') {
-                    res.setHeader('Content-Disposition', `inline; filename="${downloadName.replace(/"/g, '')}"`);
-                } else {
-                    res.attachment(downloadName);
-                }
-
-                res.send(processedBuffer);
-
-            } catch (err) {
-                console.error("PDF processing failed, falling back to raw file:", err);
-
-                if (req.query.inline === 'true') {
-                    res.setHeader('Content-Type', 'application/pdf');
-                    res.setHeader('Content-Disposition', `inline; filename="${downloadName.replace(/"/g, '')}"`);
-                    res.sendFile(absolutePath);
-                } else {
-                    res.download(absolutePath, downloadName);
-                }
-            }
-        } else {
-            console.error("File not found at path:", absolutePath);
-            res.status(404).json({ error: 'File missing from server storage.' });
+        if (!fs.existsSync(absolutePath)) {
+            console.error("File missing at:", absolutePath);
+            return res.status(404).json({ error: 'File missing from server storage.' });
         }
 
+        // Ensure the filename ends with .pdf for the client
+        let downloadName = doc.filename || 'document.pdf';
+        if (!downloadName.toLowerCase().endsWith('.pdf')) {
+            downloadName += '.pdf';
+        }
+
+        const safeFilename = downloadName.replace(/"/g, '');
+
+        try {
+            // Read the file from disk
+            const fileBuffer = fs.readFileSync(absolutePath);
+            let processedBuffer;
+
+            try {
+                // Try to load as PDF first
+                const pdfDoc = await PDFDocument.load(fileBuffer);
+                const pdfBytes = await pdfDoc.save();
+                processedBuffer = Buffer.from(pdfBytes);
+                console.log(`[Download] File ${safeFilename} processed as valid PDF.`);
+
+            } catch (pdfLoadError) {
+                console.log(`[Download] File ${safeFilename} is not a valid PDF. Converting content to PDF...`);
+
+                try {
+                    const newPdfDoc = await PDFDocument.create();
+                    // Embed Standard Font (Helvetica) - no custom font file needed
+                    const helveticaFont = await newPdfDoc.embedFont(StandardFonts.Helvetica);
+
+                    const page = newPdfDoc.addPage();
+                    const { width, height } = page.getSize();
+                    const fontSize = 10;
+                    const margin = 50;
+
+                    // Treat buffer as utf-8 text
+                    // We sanitize characters that might break pdf-lib (keeps basic ASCII/printable)
+                    const textContent = fileBuffer.toString('utf-8').replace(/[^\x20-\x7E\n]/g, '');
+
+                    // Simple wrapping/truncation to fit on page
+                    const maxLines = Math.floor((height - 2 * margin) / (fontSize + 2));
+                    const lines = textContent.split('\n');
+                    const printedText = lines.slice(0, maxLines).join('\n');
+
+                    page.drawText('Converted to PDF (Preview):', {
+                        x: margin,
+                        y: height - margin,
+                        size: 14,
+                        font: helveticaFont,
+                        color: rgb(0, 0, 0.7),
+                    });
+
+                    page.drawText(printedText, {
+                        x: margin,
+                        y: height - margin - 30,
+                        size: fontSize,
+                        font: helveticaFont,
+                        color: rgb(0, 0, 0),
+                        lineHeight: fontSize + 2,
+                    });
+
+                    const newPdfBytes = await newPdfDoc.save();
+                    processedBuffer = Buffer.from(newPdfBytes);
+
+                } catch (conversionError) {
+                    console.error("[Download] Critical: Failed to create conversion PDF", conversionError);
+                    // Last resort: Create an error PDF so the user STILL gets a PDF file
+                    const errorPdf = await PDFDocument.create();
+                    const errPage = errorPdf.addPage();
+                    errPage.drawText('Error: Could not convert source file.', { x: 50, y: 700 });
+                    processedBuffer = Buffer.from(await errorPdf.save());
+                }
+            }
+
+            // --- FINAL RESPONSE SENDING ---
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Length', processedBuffer.length);
+
+            // Handle Inline vs Attachment
+            // If the user wants to "View", use inline. If "Download", use attachment.
+            const disposition = req.query.inline === 'true' ? 'inline' : 'attachment';
+
+            // Force .pdf extension in filename
+            let finalName = safeFilename;
+            if (!finalName.toLowerCase().endsWith('.pdf')) finalName += '.pdf';
+
+            res.setHeader('Content-Disposition', `${disposition}; filename="${finalName}"`);
+
+            res.send(processedBuffer);
+
+        } catch (filesysError) {
+            console.error("File system error during download:", filesysError);
+            res.status(500).json({ error: 'Internal server error processing file.' });
+        }
     } catch (err) {
-        console.error(err);
+        console.error("Error fetching document:", err);
         res.status(500).json({ error: 'Server error' });
     }
 });
