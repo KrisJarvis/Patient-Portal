@@ -14,7 +14,8 @@ I set this up so you don't have to jump between folders to get it running.
 
 **Prerequisites:** Just Node.js.
 
-1.  **Database:** I'm using **Neon DB** (Serverless Postgres). You'll need to grab the connection string and pop it into `backend/.env`.
+1.  **Database:** I'm using **Neon DB** (Serverless Postgres). 
+    > **IMPORTANT:** I have intentionally included the `.env` file in the `backend/` folder. This connects to a live Neon DB instance so **you can run and test the application immediately** without setting up your own database.
 
 2.  **Run it:**
     I added a script in the root so you can install and run everything at once:
