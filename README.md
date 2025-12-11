@@ -1,46 +1,47 @@
 # Patient Portal Assignment
 
-Hi there! This is my submission for the Patient Portal assignment. It's a full-stack web application designed to help patients manage their medical documents easily. I built it using **React**, **Node.js**, and **PostgreSQL**.
+Hey! Here is my submission for the Patient Portal simple full-stack app. I've built this to handle medical document management (uploading, viewing, downloading PDFs) using **React**, **Node/Express**, and **PostgreSQL**.
 
-## What it does
-*   **Uploads:** You can drag and drop PDF files to upload them. I added a 5MB limit to keep things reasonable.
-*   **Preview Mode:** There's a "View" button that lets you read the PDF right in your browser without downloading it.
-*   **Reliable Downloads:** I spent some time ensuring that when you hit "Download", you actually get a valid `.pdf` file every time (the system even validates the PDF structure before sending it to you).
-*   **Management:** You can see a list of all your files and delete the ones you don't need.
+## Features
+I focused on keeping the experience smooth and the code clean:
+*   **Drag & Drop Upload:** You can easily drop PDF files to upload them (capped at 5MB).
+*   **In-Browser View:** Added a button to open PDFs directly in a new tab so you don't always have to download them.
+*   **Downloads:** Files are streamed back to the client with the correct filename.
+*   **File Management:** You can list all files and delete the ones you don't want.
 
-## Setup Instructions
+## Quick Setup
+I set this up so you don't have to jump between folders to get it running.
 
-Prereqs: You'll need **Node.js** installed on your machine.
+**Prerequisites:** Just Node.js.
 
-### 1. Database
-I used **Neon DB** (Serverless Postgres) for this. You'll need a connection string in your `.env` file.
+1.  **Database:** I'm using **Neon DB** (Serverless Postgres). You'll need to grab the connection string and pop it into `backend/.env`.
 
-### 2. Backend
-The backend runs the API and handles file storage.
-```bash
-cd backend
-npm install
+2.  **Run it:**
+    I added a script in the root so you can install and run everything at once:
+    ```bash
+    # Install dependencies for both frontend and backend
+    npm install
 
-npm run dev
-```
-It runs on port **5000**.
+    # Start the servers
+    npm run dev
+    ```
+    
+    This will spin up:
+    *   Frontend at `http://localhost:5173`
+    *   Backend at `http://localhost:5000`
 
-### 3. Frontend
-The frontend is the UI you interact with.
-```bash
-cd frontend
-npm install
-npm run dev
-```
-It usually runs on port **5173**. Open that link in your browser!
+(If you really want to run them manually, you can still `cd` into frontend/backend folders and run `npm run dev` in each).
 
-## API Quick Reference
-If you prefer testing with `curl` or Postman, here are the main endpoints I built:
+## Tech Stack & Notes
+*   **Frontend:** React + Vite. I used **Tailwind CSS** for styling because it's just faster to iterate with, and I wanted a nice dark mode.
+*   **Backend:** Simple Express server.
+*   **Storage:** Files are currently saved locally in an `uploads/` folder for simplicity.
 
-*   **Upload:** `POST /documents/upload` (Send a file as form-data)
-*   **List:** `GET /documents`
-*   **Download:** `GET /documents/:id` (Use query `?download=MyFile.pdf` to name it)
-*   **Delete:** `DELETE /documents/:id`
+## API Endpoints
+If you want to hit the API directly (Postman/cURL):
+*   `POST /documents/upload` - Send file as form-data.
+*   `GET /documents` - JSON list of files.
+*   `GET /documents/:id` - Downloads the file.
+*   `DELETE /documents/:id` - Deletes file & DB record.
 
-## Notes
-Everything is styled with **Tailwind CSS** because I wanted it to look clean and modern without writing a ton of custom CSS files.
+Let me know if you run into any issues!
