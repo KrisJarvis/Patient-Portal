@@ -1,11 +1,14 @@
 # Dependencies
 node_modules/
 
+<<<<<<< HEAD
 # Environment variables
 # .env
 .env.local
 .env.*.local
 
+=======
+>>>>>>> 7065122ef3675f968b2364647c96dd5c5a55c036
 # Builds
 dist/
 build/
